@@ -6,5 +6,6 @@
 			"src": "src/now.rs",
 			"use": "@now/rust"
 		}
-	]
+	],
+	"public": true
 }
