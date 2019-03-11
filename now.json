@@ -1,0 +1,10 @@
+{
+	"name": "check_if_email_exists",
+	"version": 2,
+	"builds": [
+		{
+			"src": "src/now.rs",
+			"use": "@now/rust"
+		}
+	]
+}
