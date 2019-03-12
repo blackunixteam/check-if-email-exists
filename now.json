@@ -3,9 +3,8 @@
 	"version": 2,
 	"builds": [
 		{
-			"src": "src/now.rs",
+			"src": "src/now/index.rs",
 			"use": "@now/rust"
 		}
-	],
-	"public": true
+	]
 }
