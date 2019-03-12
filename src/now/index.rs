@@ -1,5 +1,3 @@
-extern crate check_if_email_exists;
-
 use check_if_email_exists::email_exists;
 use http::{header, Request, Response, StatusCode};
 use std::borrow::Cow;
