@@ -1,6 +1,11 @@
 {
 	"name": "check_if_email_exists",
 	"version": 2,
+	"build": {
+		"env": {
+			"RUST_LOG": "debug"
+		}
+	},
 	"builds": [
 		{
 			"src": "src/now/index.rs",
