@@ -136,8 +136,8 @@ fn email_deliverable(
 	}
 }
 
-/// Verify the existence of a catch-all email
-fn email_has_catch_all(
+/// Verify the existence of a catch-all on the host server
+fn domain_has_catch_all(
 	smtp_client: &mut InnerClient<NetworkStream>,
 	domain: &str,
 ) -> Result<bool, Error> {
@@ -157,39 +157,40 @@ fn email_has_catch_all(
 /// Get all email details we can.
 pub fn email_details(
 	from_email: &EmailAddress,
-	to_email: &EmailAddress,
+	usernames: Vec<&str>,
 	host: &Name,
 	port: u16,
 	domain: &str,
-) -> Result<SmtpEmailDetails, Error> {
-	let mut smtp_client = connect_to_host(from_email, host, port)?;
+// ) -> Result<SmtpEmailDetails, Error> {
+) -> () {
+// let mut smtp_client = connect_to_host(from_email, host, port)?;
 
-	let has_catch_all = email_has_catch_all(&mut smtp_client, domain).unwrap_or(false);
-	let (deliverable, full_inbox) = match email_deliverable(&mut smtp_client, to_email) {
-		Ok(exists) => (exists, false),
-		Err(err) => {
-			let err_string = err.to_string();
-			// These messages mean that inbox is full, which also means that
-			// email exists
-			if err_string.contains("full")
-				|| err_string.contains("insufficient")
-				|| err_string.contains("over quota")
-				|| err_string.contains("space")
-			{
-				(true, true)
-			} else {
-				debug!("Closing {}:{}, because of error '{}'.", host, port, err);
-				return Err(err);
-			}
-		}
-	};
+	// let has_catch_all = domain_has_catch_all(&mut smtp_client, domain).unwrap_or(false);
+	// let (deliverable, full_inbox) = match email_deliverable(&mut smtp_client, to_email) {
+	// 	Ok(exists) => (exists, false),
+	// 	Err(err) => {
+	// 		let err_string = err.to_string();
+	// 		// These messages mean that inbox is full, which also means that
+	// 		// email exists
+	// 		if err_string.contains("full")
+	// 			|| err_string.contains("insufficient")
+	// 			|| err_string.contains("over quota")
+	// 			|| err_string.contains("space")
+	// 		{
+	// 			(true, true)
+	// 		} else {
+	// 			debug!("Closing {}:{}, because of error '{}'.", host, port, err);
+	// 			return Err(err);
+	// 		}
+	// 	}
+	// };
 
-	// Quit.
-	smtp_client.close();
+	// // Quit.
+	// smtp_client.close();
 
-	Ok(SmtpEmailDetails {
-		deliverable,
-		full_inbox,
-		has_catch_all,
-	})
+	// Ok(SmtpEmailDetails {
+	// 	deliverable,
+	// 	full_inbox,
+	// 	has_catch_all,
+	// })
 }
