@@ -19,7 +19,7 @@ extern crate env_logger;
 extern crate clap;
 extern crate lettre;
 
-// use check_if_email_exists::email_exists;
+use check_if_email_exists::emails_exist;
 use clap::App;
 use std::error::Error;
 use std::io;
@@ -50,13 +50,10 @@ fn main() {
 	let matches = App::from_yaml(yaml).get_matches();
 
 	let from_email = matches.value_of("FROM_EMAIL").unwrap_or("user@example.org");
-	// let to_email = matches
-	// 	.value_of("TO_EMAIL")
-	// 	.expect("'TO_EMAIL' is required. qed.");
 
 	match read_csv() {
 		Ok(emails) => {
-			println!("{:?}", emails);
+			println!("{:?}", emails_exist(emails.iter().map(AsRef::as_ref).collect(), from_email));
 			process::exit(0)
 		}
 		Err(err) => {

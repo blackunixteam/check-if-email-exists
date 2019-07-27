@@ -22,17 +22,19 @@ extern crate rand;
 extern crate rayon;
 extern crate trust_dns_resolver;
 
-mod mx_hosts;
+mod mx;
 mod smtp;
+mod syntax;
 
 use lettre::error::Error as LettreError;
 use lettre::smtp::SMTP_PORT;
 use lettre::EmailAddress;
-use mx_hosts::MxLookupError;
+use mx::MxLookupError;
 use rayon::prelude::*;
 use smtp::SmtpEmailDetails;
 use std::io::Error as IoError;
 use std::str::FromStr;
+use syntax::{address_syntax, AddressSyntax};
 use trust_dns_resolver::error::ResolveError;
 
 /// Errors generated while connecting to the domain host
@@ -40,8 +42,6 @@ use trust_dns_resolver::error::ResolveError;
 pub enum DomainError {
 	/// ISP is blocking SMTP ports
 	BlockedByIsp,
-	/// To email address formatting error
-	FromAddressError(LettreError),
 	/// IO error
 	Io(IoError),
 	///Error while resolving MX lookups
@@ -59,19 +59,6 @@ pub enum SingleEmailError {
 	ToAddressError(LettreError),
 }
 
-/// Information after parsing an email address
-#[derive(Debug)]
-pub struct AddressDetails {
-	/// The email address as a lettre EmailAddress
-	pub address: EmailAddress,
-	/// The domain name, after "@"
-	pub domain: String,
-	/// The username, before "@"
-	pub username: String,
-	/// Is the email in a valid format?
-	pub valid_format: bool,
-}
-
 /// All details about the host domain
 pub struct DomainDetails {
 	/// Details about the MX records of the domain
@@ -82,7 +69,7 @@ pub struct DomainDetails {
 #[derive(Debug)]
 pub struct SingleEmailDetails {
 	/// Details about the email address
-	pub address: AddressDetails,
+	pub syntax: AddressSyntax,
 	/// Details about the SMTP responses of the email
 	pub smtp: SmtpEmailDetails,
 }
@@ -112,38 +99,39 @@ pub struct SingleEmailDetails {
 // 		.collect::<Vec<String>>();
 // 	debug!("Found the following MX hosts {:?}", mx_details);
 
-
 // }
 
 /// The main function: checks email format, checks MX records, and checks SMTP
 /// responses to the email inbox.
-pub fn email_exists(from_email: &str, to_emails: Vec<&str>) -> () {
-	debug!("Preparing to check for {} emails", to_emails.len());
+pub fn emails_exist(
+	email_addresses: Vec<&str>,
+	from_email: &str,
+) -> Vec<Result<(), SingleEmailError>> {
+	debug!("Checking list of {} emails", email_addresses.len());
 
-	// let from_email = match EmailAddress::from_str(from_email) {
-	// 	Ok(email) => email,
-	// 	Err(err) => return Err(EmailExistsError::FromAddressError(err)),
-	// };
+	let from_email = EmailAddress::from_str(from_email).unwrap_or(
+		EmailAddress::from_str("user@example.org").expect("This is a valid email. qed."),
+	);
 
+	let syntaxes = email_addresses
+		.iter()
+		.map(|email_address| address_syntax(email_address))
+		.collect::<Vec<_>>();
 
-	// let iter: &str = to_email.as_ref();
-	// let mut iter = iter.split("@");
-	// let username = iter
-	// 	.next()
-	// 	.expect("We checked above that email is valid. qed.")
-	// 	.to_string();
-	// let domain = iter
-	// 	.next()
-	// 	.expect("We checked above that email is valid. qed.")
-	// 	.to_string();
+	// Number of valid ones
+	let valid_count = syntaxes
+		.iter()
+		.filter(|s| s.is_ok())
+		.collect::<Vec<_>>()
+		.len();
+	debug!(
+		"Found {} valid emails, {} invalid ones",
+		valid_count,
+		email_addresses.len() - valid_count
+	);
+	// Partition the emails by host name
 
-	// let address_details = AddressDetails {
-	// 	address: to_email,
-	// 	domain,
-	// 	username,
-	// 	valid_format: true,
-	// };
-	// debug!("Details of the email address: {:?}", address_details);
+	vec![Ok(())]
 
 	// let to_email = match EmailAddress::from_str(to_email) {
 	// 	Ok(email) => email,
