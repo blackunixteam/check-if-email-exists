@@ -59,7 +59,7 @@ fn handler(request: Request, _: Context) -> Result<impl IntoResponse, HandlerErr
 
 		let response = match email_exists(&from_email, &to_email) {
 			Ok(details) => Response {
-				address: details.address.address.to_string(),
+				address: details.address.address.into(),
 				deliverable: details.smtp.deliverable,
 				domain: details.address.domain,
 				full_inbox: details.smtp.full_inbox,
@@ -70,7 +70,7 @@ fn handler(request: Request, _: Context) -> Result<impl IntoResponse, HandlerErr
 				valid_format: details.address.valid_format,
 			},
 			Err(EmailExistsError::ToAddressError(_)) => Response {
-				address: to_email.to_string(),
+				address: to_email.into(),
 				deliverable: false,
 				domain: String::new(),
 				full_inbox: false,

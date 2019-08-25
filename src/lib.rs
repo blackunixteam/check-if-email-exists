@@ -32,50 +32,33 @@ use lettre::EmailAddress;
 use mx::MxLookupError;
 use rayon::prelude::*;
 use smtp::SmtpEmailDetails;
-use std::io::Error as IoError;
+use std::collections::HashMap;
 use std::str::FromStr;
 use syntax::{address_syntax, AddressSyntax};
-use trust_dns_resolver::error::ResolveError;
+use trust_dns_resolver::lookup::MxLookup;
 
-/// Errors generated while connecting to the domain host
 #[derive(Debug)]
-pub enum DomainError {
-	/// ISP is blocking SMTP ports
-	BlockedByIsp,
-	/// IO error
-	Io(IoError),
-	///Error while resolving MX lookups
-	MxLookup(ResolveError),
-	/// To email address formatting error
-	ToAddressError(LettreError),
-}
-
-/// Errors concerning one single email address
-#[derive(Debug)]
-pub enum SingleEmailError {
-	/// Error related to the domain host
-	DomainError,
-	/// To email address formatting error
-	ToAddressError(LettreError),
-}
-
-/// All details about the host domain
-pub struct DomainDetails {
-	/// Details about the MX records of the domain
-	pub mx: Vec<String>,
+/// Errors that can happen on MX lookups
+pub enum MxError {
+	/// Skipped checking MX records
+	Skipped,
+	/// Error while resolving MX lookups
+	Mx(MxLookupError),
 }
 
 /// All details about email address, MX records and SMTP responses
 #[derive(Debug)]
-pub struct SingleEmailDetails {
-	/// Details about the email address
-	pub syntax: AddressSyntax,
+pub struct SingleEmail {
+	/// Details about the MX host
+	pub mx: Result<MxLookup, MxError>,
 	/// Details about the SMTP responses of the email
-	pub smtp: SmtpEmailDetails,
+	pub smtp: Result<SmtpEmailDetails, ()>, // TODO Better Err type
+	/// Details about the email address
+	pub syntax: Result<AddressSyntax, LettreError>,
 }
 
 // /// Check if all usernames exist on one domain
-// fn email_details_one_domain(from_email: &str, usernames: Vec<&str>, domain: &str) -> Vec<Result<SingleEmailDetails,SingleEmailError>> {
+// fn email_details_one_domain(from_email: &str, usernames: Vec<&str>, domain: &str) -> Vec<Result<SingleEmail,SingleEmailError>> {
 // 	debug!("Checking following usernames on domain '{}': {:?}", domain, usernames);
 
 // 	debug!("Getting MX lookup...");
@@ -95,7 +78,7 @@ pub struct SingleEmailDetails {
 // 	}
 // 	let mx_details = combinations
 // 		.iter()
-// 		.map(|(host, _)| host.to_string())
+// 		.map(|(host, _)| host.into())
 // 		.collect::<Vec<String>>();
 // 	debug!("Found the following MX hosts {:?}", mx_details);
 
@@ -103,24 +86,28 @@ pub struct SingleEmailDetails {
 
 /// The main function: checks email format, checks MX records, and checks SMTP
 /// responses to the email inbox.
-pub fn emails_exist(
-	email_addresses: Vec<&str>,
-	from_email: &str,
-) -> Vec<Result<(), SingleEmailError>> {
+pub fn emails_exist(email_addresses: Vec<&str>, from_email: &str) -> Vec<Result<(), ()>> {
 	debug!("Checking list of {} emails", email_addresses.len());
 
 	let from_email = EmailAddress::from_str(from_email).unwrap_or(
 		EmailAddress::from_str("user@example.org").expect("This is a valid email. qed."),
 	);
 
-	let syntaxes = email_addresses
+	// We want to get at the end: a HashMap between email_address (as &str), and
+	// Result<SingleEmail, SingleEmailError>. To do so, we separate the
+	// task into 3 steps
+
+	// Step 1: create a HashMap between email_address and AddressSyntax
+	let syntax_map: HashMap<&str, Result<AddressSyntax, LettreError>> = email_addresses
 		.iter()
-		.map(|email_address| address_syntax(email_address))
-		.collect::<Vec<_>>();
+		.fold(HashMap::new(), |mut acc, value| {
+			acc.entry(value).or_insert(address_syntax(value));
+			acc
+		});
 
 	// Number of valid ones
-	let valid_count = syntaxes
-		.iter()
+	let valid_count = syntax_map
+		.values()
 		.filter(|s| s.is_ok())
 		.collect::<Vec<_>>()
 		.len();
@@ -129,14 +116,85 @@ pub fn emails_exist(
 		valid_count,
 		email_addresses.len() - valid_count
 	);
+
+	// Step 2: create a HashMap between domain and Result<MxLookup, MxLookupError>
 	// Partition the emails by host name
+	let partition: HashMap<String, Vec<&AddressSyntax>> = syntax_map
+		.values()
+		.filter_map(|value| value.as_ref().ok())
+		.fold(HashMap::new(), |mut acc, value| {
+			let entry = acc.entry(value.domain.clone()).or_insert(vec![]);
+			entry.push(&value);
+			acc
+		});
+	let mut all_domains: Vec<&str> = Vec::new();
+	for (k, _) in partition.iter() {
+		all_domains.push(k);
+	}
+	let mx_map = all_domains
+		.into_par_iter()
+		.fold(
+			|| HashMap::new(),
+			|mut acc, domain| {
+				acc.entry(domain).or_insert(mx::get_mx_lookup(domain));
+				acc
+			},
+		)
+		.reduce(
+			|| HashMap::new(),
+			|mut m1, m2| {
+				m1.extend(m2);
+				m1
+			},
+		);
+
+	println!("{:?}", mx_map);
+
+	// Step 3: create a HashMap between email_address and
+	println!("{:?}", syntax_map);
+
+	// Finally, create a map between email_address and SingleEmail
+	let single_email_map: HashMap<&str, SingleEmail> =email_addresses
+		.iter()
+		.fold(HashMap::new(),|mut acc, value| {
+			{
+				let current_syntax = syntax_map.get(value).expect("We created syntax_map with email_addresses as keys. qed.");
+				match current_syntax {
+					Ok(s) => {
+						let current_mx = mx_map.get::<str>(&s.domain).expect("We created mx_map with all email_addresses' domains. qed.");
+						match current_mx {
+							Ok(m) => {
+								acc.entry(value).or_insert(SingleEmail {
+									mx: Ok(*m),
+									smtp: Err(()),
+									syntax: Ok(*s)
+								});
+							},
+							Err(err)=> {
+								acc.entry(value).or_insert(SingleEmail {
+									mx: Err(MxError::Mx(*err)),
+									smtp: Err(()),
+									syntax: Ok(*s)
+								});
+							}
+						}
+					},
+					Err(err)=> {
+						acc.entry(value).or_insert(SingleEmail {
+									mx: Err(MxError::Skipped),
+									smtp: Err(()),
+									syntax: Err(*err)
+								});
+					}
+				}
+			}
+
+			acc
+		});
+
+	// println!("{:?}", single_email_map);
 
 	vec![Ok(())]
-
-	// let to_email = match EmailAddress::from_str(to_email) {
-	// 	Ok(email) => email,
-	// 	Err(err) => return Err(EmailExistsError::ToAddressError(err)),
-	// };
 
 	// let smtp_details = combinations
 	// 	// Concurrently find any combination that returns true for email_exists

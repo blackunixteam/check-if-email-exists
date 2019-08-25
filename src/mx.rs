@@ -20,6 +20,7 @@ use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::lookup::MxLookup;
 use trust_dns_resolver::Resolver;
 
+#[derive(Debug)]
 pub enum MxLookupError {
 	Io(IoError),
 	ResolveError(ResolveError),

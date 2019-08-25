@@ -20,7 +20,7 @@ use lettre::EmailAddress;
 use std::str::FromStr;
 
 /// Syntax information after parsing an email address
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AddressSyntax {
 	/// The email address as a lettre EmailAddress
 	pub address: EmailAddress,
@@ -42,11 +42,11 @@ pub fn address_syntax(email_address: &str) -> Result<AddressSyntax, LettreError>
 	let username = iter
 		.next()
 		.expect("We checked above that email is valid. qed.")
-		.to_string();
+		.into();
 	let domain = iter
 		.next()
 		.expect("We checked above that email is valid. qed.")
-		.to_string();
+		.into();
 
 	let address_details = AddressSyntax {
 		address: email_address,

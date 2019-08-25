@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with check_if_email_exists.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::syntax::{address_syntax, AddressSyntax};
 use lettre::smtp::client::net::NetworkStream;
 use lettre::smtp::client::InnerClient;
 use lettre::smtp::commands::*;
@@ -74,7 +75,7 @@ fn connect_to_host(
 
 	// "EHLO localhost"
 	try_smtp!(
-		smtp_client.command(EhloCommand::new(ClientId::new("localhost".to_string()))),
+		smtp_client.command(EhloCommand::new(ClientId::new("localhost".into()))),
 		smtp_client,
 		host,
 		port
@@ -158,18 +159,18 @@ fn domain_has_catch_all(
 pub fn email_details(
 	from_email: &EmailAddress,
 	usernames: Vec<&str>,
+	domain: &str,
 	host: &Name,
 	port: u16,
-	domain: &str,
-// ) -> Result<SmtpEmailDetails, Error> {
 ) -> () {
-// let mut smtp_client = connect_to_host(from_email, host, port)?;
+	// ) -> Result<SmtpEmailDetails, Error> {
+	// let mut smtp_client = connect_to_host(from_email, host, port)?;
 
-	// let has_catch_all = domain_has_catch_all(&mut smtp_client, domain).unwrap_or(false);
+	// // let has_catch_all = domain_has_catch_all(&mut smtp_client, domain).unwrap_or(false);
 	// let (deliverable, full_inbox) = match email_deliverable(&mut smtp_client, to_email) {
 	// 	Ok(exists) => (exists, false),
 	// 	Err(err) => {
-	// 		let err_string = err.to_string();
+	// 		let err_string = err.into();
 	// 		// These messages mean that inbox is full, which also means that
 	// 		// email exists
 	// 		if err_string.contains("full")

@@ -36,7 +36,7 @@ fn read_csv() -> Result<Vec<String>, Box<dyn Error>> {
 		let mut record = result?;
 		// If the csv has more than 1 column, we ignore
 		record.truncate(1);
-		emails.push(record.as_slice().to_string())
+		emails.push(record.as_slice().into())
 	}
 
 	Ok(emails)
@@ -53,7 +53,10 @@ fn main() {
 
 	match read_csv() {
 		Ok(emails) => {
-			println!("{:?}", emails_exist(emails.iter().map(AsRef::as_ref).collect(), from_email));
+			println!(
+				"{:?}",
+				emails_exist(emails.iter().map(AsRef::as_ref).collect(), from_email)
+			);
 			process::exit(0)
 		}
 		Err(err) => {
