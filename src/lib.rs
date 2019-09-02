@@ -98,7 +98,7 @@ pub fn emails_exist(email_addresses: Vec<&str>, from_email: &str) -> Vec<Result<
 	// task into 3 steps
 
 	// Step 1: create a HashMap between email_address and AddressSyntax
-	let syntax_map: HashMap<&str, Result<AddressSyntax, LettreError>> = email_addresses
+	let mut syntax_map: HashMap<&str, Result<AddressSyntax, LettreError>> = email_addresses
 		.iter()
 		.fold(HashMap::new(), |mut acc, value| {
 			acc.entry(value).or_insert(address_syntax(value));
@@ -131,7 +131,7 @@ pub fn emails_exist(email_addresses: Vec<&str>, from_email: &str) -> Vec<Result<
 	for (k, _) in partition.iter() {
 		all_domains.push(k);
 	}
-	let mx_map = all_domains
+	let mut mx_map = all_domains
 		.into_par_iter()
 		.fold(
 			|| HashMap::new(),
@@ -158,23 +158,23 @@ pub fn emails_exist(email_addresses: Vec<&str>, from_email: &str) -> Vec<Result<
 		.iter()
 		.fold(HashMap::new(),|mut acc, value| {
 			{
-				let current_syntax = syntax_map.get(value).expect("We created syntax_map with email_addresses as keys. qed.");
+				let current_syntax = syntax_map.remove(value).expect("We created syntax_map with email_addresses as keys. qed.");
 				match current_syntax {
 					Ok(s) => {
-						let current_mx = mx_map.get::<str>(&s.domain).expect("We created mx_map with all email_addresses' domains. qed.");
+						let current_mx = mx_map.remove::<str>(&s.domain).expect("We created mx_map with all email_addresses' domains. qed.");
 						match current_mx {
 							Ok(m) => {
 								acc.entry(value).or_insert(SingleEmail {
-									mx: Ok(*m),
+									mx: Ok(m),
 									smtp: Err(()),
-									syntax: Ok(*s)
+									syntax: Ok(s)
 								});
 							},
 							Err(err)=> {
 								acc.entry(value).or_insert(SingleEmail {
-									mx: Err(MxError::Mx(*err)),
+									mx: Err(MxError::Mx(err)),
 									smtp: Err(()),
-									syntax: Ok(*s)
+									syntax: Ok(s)
 								});
 							}
 						}
@@ -183,7 +183,7 @@ pub fn emails_exist(email_addresses: Vec<&str>, from_email: &str) -> Vec<Result<
 						acc.entry(value).or_insert(SingleEmail {
 									mx: Err(MxError::Skipped),
 									smtp: Err(()),
-									syntax: Err(*err)
+									syntax: Err(err)
 								});
 					}
 				}
